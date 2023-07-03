@@ -39,6 +39,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart)
 
 	// 1.) enable the clock for UASRT1 peripheral
 	__HAL_RCC_USART1_CLK_ENABLE();
+	__HAL_RCC_GPIOB_CLK_ENABLE();
 
 	// 2.) Pin muxing configurations
 	// Uart Tx and Uart Rx

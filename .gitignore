@@ -51,3 +51,8 @@ Module.symvers
 Mkfile.old
 dkms.conf
 Debug/
+.metadata/
+RemoteSystemsTempFiles/
+.settings/
+*.launch
+*.mxproject

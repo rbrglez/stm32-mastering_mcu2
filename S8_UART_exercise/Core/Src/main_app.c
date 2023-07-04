@@ -21,25 +21,24 @@ void Error_handler(void);
 void capitalize_string(uint8_t *str, uint32_t length);
 uint8_t convert_to_capital(uint8_t character);
 
-int main(void){
+int main(void) {
 	HAL_Init();
 	SystemClockConfig();
 	UART1_Init();
 
-	if(HAL_UART_Transmit(&huart1, (uint8_t *)user_data, strlen(user_data), HAL_MAX_DELAY) != HAL_OK){
+	if (HAL_UART_Transmit(&huart1, (uint8_t*) user_data, strlen(user_data), HAL_MAX_DELAY) != HAL_OK) {
 		Error_handler();
 	}
 
-	while(1){
-		while(1){
+	while (1) {
+		while (1) {
 
 			HAL_UART_Receive(&huart1, &rx_data, 1, HAL_MAX_DELAY);
-			if(rx_data == '\r'){
+			if (rx_data == '\r') {
 				break;
-			}
-			else{
+			} else {
 				data_buffer[count] = convert_to_capital(rx_data);
-				count ++;
+				count++;
 			}
 
 		}
@@ -53,11 +52,11 @@ int main(void){
 	return 0;
 }
 
-void SystemClockConfig(void){
+void SystemClockConfig(void) {
 
 }
 
-void UART1_Init(void){
+void UART1_Init(void) {
 	huart1.Instance = USART1;
 
 	huart1.Init.BaudRate = 115200;
@@ -66,26 +65,28 @@ void UART1_Init(void){
 	huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
 	huart1.Init.Mode = UART_MODE_TX_RX;
 
-	if (HAL_UART_Init(&huart1) != HAL_OK){
+	if (HAL_UART_Init(&huart1) != HAL_OK) {
 		// There is a problem
 		Error_handler();
 	}
 }
 
-void Error_handler(void){
+void Error_handler(void) {
 
 }
 
-void capitalize_string(uint8_t* str, uint32_t length){
-    for(int i = 0; i < length; i++){
-        if((*(str + i) >= 'a') && (*(str + i) <= 'z')){
-            *(str + i) += 'A' - 'a';
-        }
-    }
+void capitalize_string(uint8_t *str, uint32_t length) {
+	for (int i = 0; i < length; i++) {
+		if ((*(str + i) >= 'a') && (*(str + i) <= 'z')) {
+			*(str + i) += 'A' - 'a';
+		}
+	}
 }
 
-uint8_t convert_to_capital(uint8_t character){
-	if(character >= 'a' && character <= 'z') return (character + 'A' - 'a');
-	else return character;
+uint8_t convert_to_capital(uint8_t character) {
+	if (character >= 'a' && character <= 'z')
+		return (character + 'A' - 'a');
+	else
+		return character;
 }
 

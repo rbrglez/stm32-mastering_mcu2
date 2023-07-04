@@ -8,6 +8,8 @@
 #ifndef INC_MAIN_APP_H_
 #define INC_MAIN_APP_H_
 
+#include "stm32wbxx_hal.h"
+
 // Use NVIC_PRIORITYGROUP_4, which has 16 different preempt-priorities
 #define  MEM_MNG_PRIORITY	0U /*!< memory management interrupt preempt-priority */
 #define  BUS_FLT_PRIORITY	0U /*!< bus fault interrupt preempt-priority */

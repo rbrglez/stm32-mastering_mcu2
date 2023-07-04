@@ -11,9 +11,10 @@
 
 UART_HandleTypeDef huart1;
 char *user_data = "The application is running\r\n";
-uint8_t rx_data;
+
 uint8_t data_buffer[100];
 uint32_t count = 0;
+uint8_t rx_data;
 
 void SystemClockConfig(void);
 void UART1_Init(void);
@@ -30,25 +31,10 @@ int main(void) {
 		Error_handler();
 	}
 
-	while (1) {
-		while (1) {
-
-			HAL_UART_Receive(&huart1, &rx_data, 1, HAL_MAX_DELAY);
-			if (rx_data == '\r') {
-				break;
-			} else {
-				data_buffer[count] = convert_to_capital(rx_data);
-				count++;
-			}
-
-		}
-		data_buffer[count] = '\r';
-		count++;
-		// Old implementation, where I changed whole string that was received!
-		//capitalize_string(data_buffer, count);
-		HAL_UART_Transmit(&huart1, data_buffer, count, HAL_MAX_DELAY);
-		count = 0;
+	while(1){
+		HAL_UART_Receive_IT(&huart1, &rx_data, 1);
 	}
+
 	return 0;
 }
 
@@ -90,3 +76,15 @@ uint8_t convert_to_capital(uint8_t character) {
 		return character;
 }
 
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
+	if (rx_data == '\r'){
+		data_buffer[count++] = '\r';
+		HAL_UART_Transmit(huart, data_buffer, count, HAL_MAX_DELAY);
+		count = 0;
+	}
+	else{
+		data_buffer[count++] = convert_to_capital(rx_data);
+	}
+
+}

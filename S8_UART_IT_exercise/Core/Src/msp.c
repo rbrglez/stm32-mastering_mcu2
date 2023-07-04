@@ -5,7 +5,6 @@
  *      Author: Rene
  */
 
-#include "stm32wbxx_hal.h"
 #include "main_app.h"
 
 

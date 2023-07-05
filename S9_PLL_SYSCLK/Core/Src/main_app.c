@@ -65,14 +65,25 @@ void UART_Tx_Clk_Freqs(UART_HandleTypeDef *huart){
 }
 
 void SystemClockConfig(void) {
-	// Initialize osciliator
+	// Initialize oscillator
 	memset(&osc_init, 0, sizeof(osc_init)); // set whole structure to 0
 	osc_init.OscillatorType = RCC_OSCILLATORTYPE_HSE;
 	osc_init.HSEState = RCC_HSE_ON;
+	// PLL configuration
+	osc_init.PLL.PLLState = RCC_PLL_ON; // activate PLL
+	osc_init.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+	osc_init.PLL.PLLM = RCC_PLLM_DIV4;
+	osc_init.PLL.PLLN = 25;
+	osc_init.PLL.PLLR = RCC_PLLR_DIV4;
+	// Don't care for these settings but set them anyway
+	osc_init.PLL.PLLP = RCC_PLLP_DIV4;
+	osc_init.PLL.PLLQ = RCC_PLLQ_DIV4;
+
 	if (HAL_RCC_OscConfig(&osc_init) != HAL_OK){
 		Error_handler();
 	}
 
+	memset(&clk_init, 0, sizeof(clk_init)); // set whole structure to 0
 	clk_init.ClockType = (
 			RCC_CLOCKTYPE_SYSCLK |
 			RCC_CLOCKTYPE_HCLK |
@@ -80,11 +91,12 @@ void SystemClockConfig(void) {
 			RCC_CLOCKTYPE_PCLK2 |
 			RCC_CLOCKTYPE_HCLK2 |
 			RCC_CLOCKTYPE_HCLK4);
-	clk_init.SYSCLKSource = RCC_SYSCLKSOURCE_HSE;
+	clk_init.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
 	clk_init.AHBCLKDivider = RCC_SYSCLK_DIV2;
+	clk_init.AHBCLK4Divider = RCC_SYSCLK_DIV4; // set divider, so that flash latency used is FLASH_LATENCY_0
 	clk_init.APB1CLKDivider = RCC_HCLK_DIV8;
 	clk_init.APB2CLKDivider = RCC_HCLK_DIV8;
-	if (HAL_RCC_ClockConfig(&clk_init, FLASH_LATENCY_1) != HAL_OK){
+	if (HAL_RCC_ClockConfig(&clk_init, FLASH_LATENCY_0) != HAL_OK){
 		Error_handler();
 	}
 
@@ -94,11 +106,10 @@ void SystemClockConfig(void) {
 	//Systick by default uses HSI clock.
 	// Now that HSI clock is disabled, systick should be reconfigured
 
-	// diveded by 1000, because systick should trigger every 1ms in order for HAL APIs to work properly.
+	// divided by 1000, because systick should trigger every 1ms in order for HAL APIs to work properly.
 	HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
 
 	HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
-
 
 }
 

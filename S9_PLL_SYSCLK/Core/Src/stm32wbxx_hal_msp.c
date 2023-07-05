@@ -170,7 +170,7 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef* hpcd)
     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USB;
     PeriphClkInitStruct.PLLSAI1.PLLN = 24;
     PeriphClkInitStruct.PLLSAI1.PLLP = RCC_PLLP_DIV2;
-    PeriphClkInitStruct.PLLSAI1.PLLQ = RCC_PLLQ_DIV2;
+    PeriphClkInitStruct.PLLSAI1.PLLQ = RCC_PLLQ_DIV4;
     PeriphClkInitStruct.PLLSAI1.PLLR = RCC_PLLR_DIV2;
     PeriphClkInitStruct.PLLSAI1.PLLSAI1ClockOut = RCC_PLLSAI1_USBCLK;
     PeriphClkInitStruct.UsbClockSelection = RCC_USBCLKSOURCE_PLLSAI1;

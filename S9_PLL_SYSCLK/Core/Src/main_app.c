@@ -17,6 +17,8 @@
 RCC_OscInitTypeDef osc_init;
 RCC_ClkInitTypeDef clk_init;
 
+RCC_PLLInitTypeDef PLL_config = {0};
+
 UART_HandleTypeDef huart1;
 
 char app_buffer_msg[APP_BUFFER_MSG_SIZE];
@@ -29,6 +31,8 @@ void UART1_Init(void);
 void Error_handler(void);
 void APP_Gen_Clock_Config_String(char *msg, uint32_t msg_size);
 void APP_Gen_Header_String(char *header_buffer, char *header_msg, uint32_t header_buffer_size);
+
+void PllConfig(RCC_PLLInitTypeDef *PLL_init);
 
 int main(void) {
 	HAL_Init();
@@ -69,6 +73,23 @@ int main(void) {
 		Error_handler();
 	}
 
+	APP_Gen_Clock_Config_String(clk_config_msg, CLK_CONFIG_MSG_SIZE);
+	HAL_UART_Transmit(&huart1, (uint8_t*) clk_config_msg, strlen(clk_config_msg), HAL_MAX_DELAY);
+
+	PLL_config.PLLState = RCC_PLL_ON;
+	PLL_config.PLLSource = RCC_PLLSOURCE_HSE;
+	PLL_config.PLLM = LL_RCC_PLLM_DIV_4;
+	PLL_config.PLLN = 42;
+	PLL_config.PLLP = RCC_PLLP_DIV4;
+	PLL_config.PLLQ = RCC_PLLQ_DIV4;
+	PLL_config.PLLR = RCC_PLLR_DIV4;
+	PllConfig(&PLL_config);
+	UART1_Init();
+
+	APP_Gen_Header_String(app_buffer_msg, "Reconfigured Clock", APP_BUFFER_MSG_SIZE);
+	if (HAL_UART_Transmit(&huart1, (uint8_t*) app_buffer_msg, strlen(app_buffer_msg), HAL_MAX_DELAY) != HAL_OK) {
+		Error_handler();
+	}
 	APP_Gen_Clock_Config_String(clk_config_msg, CLK_CONFIG_MSG_SIZE);
 	HAL_UART_Transmit(&huart1, (uint8_t*) clk_config_msg, strlen(clk_config_msg), HAL_MAX_DELAY);
 
@@ -122,6 +143,45 @@ void APP_Gen_Clock_Config_String(char *msg, uint32_t msg_size){
 			HAL_RCC_GetPCLK1Freq(),
 			HAL_RCC_GetPCLK2Freq()
 	);
+}
+
+void PllConfig(RCC_PLLInitTypeDef *PLL_init){
+	RCC_OscInitTypeDef curr_osc_init = {0};
+	RCC_ClkInitTypeDef curr_clk_init = {0};
+
+	// deinitialize clock configurations
+	HAL_RCC_DeInit();
+
+	// Initialize oscillator
+	curr_osc_init.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+	curr_osc_init.HSEState = RCC_HSE_ON;
+	// PLL configuration
+	curr_osc_init.PLL = *PLL_init;
+
+	if (HAL_RCC_OscConfig(&curr_osc_init) != HAL_OK){
+		Error_handler();
+	}
+
+	curr_clk_init.ClockType = (
+			RCC_CLOCKTYPE_SYSCLK |
+			RCC_CLOCKTYPE_HCLK |
+			RCC_CLOCKTYPE_PCLK1 |
+			RCC_CLOCKTYPE_PCLK2 |
+			RCC_CLOCKTYPE_HCLK2 |
+			RCC_CLOCKTYPE_HCLK4);
+	curr_clk_init.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+	curr_clk_init.AHBCLKDivider = RCC_SYSCLK_DIV2;
+	curr_clk_init.AHBCLK4Divider = RCC_SYSCLK_DIV4; // set divider, so that flash latency used is FLASH_LATENCY_0
+	curr_clk_init.APB1CLKDivider = RCC_HCLK_DIV8;
+	curr_clk_init.APB2CLKDivider = RCC_HCLK_DIV8;
+	if (HAL_RCC_ClockConfig(&curr_clk_init, FLASH_LATENCY_0) != HAL_OK){
+		Error_handler();
+	}
+
+	// divided by 1000, because systick should trigger every 1ms in order for HAL APIs to work properly.
+	HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
+
+	HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
 }
 
 void SystemClockConfig(void) {
@@ -190,4 +250,7 @@ void UART1_Init(void) {
 
 void Error_handler(void) {
 
+	while(1){
+		// If any error wait here
+	}
 }

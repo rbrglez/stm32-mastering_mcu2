@@ -5,7 +5,6 @@
  *      Author: Rene
  */
 
-#include "stm32wbxx_hal.h"
 #include "main_app.h"
 #include "string.h"
 #include  "stdio.h"
@@ -17,8 +16,6 @@
 RCC_OscInitTypeDef osc_init;
 RCC_ClkInitTypeDef clk_init;
 
-RCC_PLLInitTypeDef PLL_config = {0};
-
 UART_HandleTypeDef huart1;
 
 char app_buffer_msg[APP_BUFFER_MSG_SIZE];
@@ -26,13 +23,11 @@ char clk_config_msg[CLK_CONFIG_MSG_SIZE];
 char header_buffer[HEADER_BUFFER_SIZE];
 char buffer[32];
 
-void SystemClockConfig(void);
+void SystemClockConfig(uint8_t clk_freq);
 void UART1_Init(void);
 void Error_handler(void);
 void APP_Gen_Clock_Config_String(char *msg, uint32_t msg_size);
 void APP_Gen_Header_String(char *header_buffer, char *header_msg, uint32_t header_buffer_size);
-
-void PllConfig(RCC_PLLInitTypeDef *PLL_init);
 
 int main(void) {
 	HAL_Init();
@@ -62,7 +57,7 @@ int main(void) {
 	HAL_UART_Transmit(&huart1, (uint8_t*) clk_config_msg, strlen(clk_config_msg), HAL_MAX_DELAY);
 
 	// Configure clocks
-	SystemClockConfig();
+	SystemClockConfig(SYS_CLOCK_FREQ_50_MHZ);
 
 	// Reconfigure UART1, because clock which runs uart has been reconfigured
 	UART1_Init();
@@ -76,14 +71,10 @@ int main(void) {
 	APP_Gen_Clock_Config_String(clk_config_msg, CLK_CONFIG_MSG_SIZE);
 	HAL_UART_Transmit(&huart1, (uint8_t*) clk_config_msg, strlen(clk_config_msg), HAL_MAX_DELAY);
 
-	PLL_config.PLLState = RCC_PLL_ON;
-	PLL_config.PLLSource = RCC_PLLSOURCE_HSE;
-	PLL_config.PLLM = LL_RCC_PLLM_DIV_4;
-	PLL_config.PLLN = 42;
-	PLL_config.PLLP = RCC_PLLP_DIV4;
-	PLL_config.PLLQ = RCC_PLLQ_DIV4;
-	PLL_config.PLLR = RCC_PLLR_DIV4;
-	PllConfig(&PLL_config);
+	// deinitialize clock configurations
+	HAL_RCC_DeInit();
+	// Reconfigure sys clk
+	SystemClockConfig(SYS_CLOCK_FREQ_64_MHZ);
 	UART1_Init();
 
 	APP_Gen_Header_String(app_buffer_msg, "Reconfigured Clock", APP_BUFFER_MSG_SIZE);
@@ -145,78 +136,110 @@ void APP_Gen_Clock_Config_String(char *msg, uint32_t msg_size){
 	);
 }
 
-void PllConfig(RCC_PLLInitTypeDef *PLL_init){
-	RCC_OscInitTypeDef curr_osc_init = {0};
-	RCC_ClkInitTypeDef curr_clk_init = {0};
-
-	// deinitialize clock configurations
-	HAL_RCC_DeInit();
-
-	// Initialize oscillator
-	curr_osc_init.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-	curr_osc_init.HSEState = RCC_HSE_ON;
-	// PLL configuration
-	curr_osc_init.PLL = *PLL_init;
-
-	if (HAL_RCC_OscConfig(&curr_osc_init) != HAL_OK){
-		Error_handler();
-	}
-
-	curr_clk_init.ClockType = (
-			RCC_CLOCKTYPE_SYSCLK |
-			RCC_CLOCKTYPE_HCLK |
-			RCC_CLOCKTYPE_PCLK1 |
-			RCC_CLOCKTYPE_PCLK2 |
-			RCC_CLOCKTYPE_HCLK2 |
-			RCC_CLOCKTYPE_HCLK4);
-	curr_clk_init.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-	curr_clk_init.AHBCLKDivider = RCC_SYSCLK_DIV2;
-	curr_clk_init.AHBCLK4Divider = RCC_SYSCLK_DIV4; // set divider, so that flash latency used is FLASH_LATENCY_0
-	curr_clk_init.APB1CLKDivider = RCC_HCLK_DIV8;
-	curr_clk_init.APB2CLKDivider = RCC_HCLK_DIV8;
-	if (HAL_RCC_ClockConfig(&curr_clk_init, FLASH_LATENCY_0) != HAL_OK){
-		Error_handler();
-	}
-
-	// divided by 1000, because systick should trigger every 1ms in order for HAL APIs to work properly.
-	HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
-
-	HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
-}
-
-void SystemClockConfig(void) {
-	// Initialize oscillator
+void SystemClockConfig(uint8_t clk_freq){
+	memset(&clk_init, 0, sizeof(clk_init)); // set whole structure to 0
 	memset(&osc_init, 0, sizeof(osc_init)); // set whole structure to 0
+
+	uint32_t FLatency;
+
+	// Initialize oscillator
 	osc_init.OscillatorType = RCC_OSCILLATORTYPE_HSE;
 	osc_init.HSEState = RCC_HSE_ON;
 	// PLL configuration
 	osc_init.PLL.PLLState = RCC_PLL_ON; // activate PLL
 	osc_init.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-	osc_init.PLL.PLLM = RCC_PLLM_DIV4;
-	osc_init.PLL.PLLN = 25;
-	osc_init.PLL.PLLR = RCC_PLLR_DIV4;
-	// Don't care for these settings but set them anyway
-	osc_init.PLL.PLLP = RCC_PLLP_DIV4;
-	osc_init.PLL.PLLQ = RCC_PLLQ_DIV4;
+
+	switch(clk_freq){
+		case SYS_CLOCK_FREQ_50_MHZ:
+		{
+			osc_init.PLL.PLLM = RCC_PLLM_DIV4;
+			osc_init.PLL.PLLN = 25;
+			osc_init.PLL.PLLR = RCC_PLLR_DIV4;
+			// Don't care for these settings but set them anyway
+			osc_init.PLL.PLLP = RCC_PLLP_DIV4;
+			osc_init.PLL.PLLQ = RCC_PLLQ_DIV4;
+
+			clk_init.ClockType = (
+					RCC_CLOCKTYPE_SYSCLK |
+					RCC_CLOCKTYPE_HCLK |
+					RCC_CLOCKTYPE_PCLK1 |
+					RCC_CLOCKTYPE_PCLK2 |
+					RCC_CLOCKTYPE_HCLK2 |
+					RCC_CLOCKTYPE_HCLK4);
+			clk_init.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+			clk_init.AHBCLKDivider = RCC_SYSCLK_DIV2;
+			clk_init.AHBCLK4Divider = RCC_SYSCLK_DIV4; // set divider, so that flash latency used is FLASH_LATENCY_0
+			clk_init.APB1CLKDivider = RCC_HCLK_DIV8;
+			clk_init.APB2CLKDivider = RCC_HCLK_DIV8;
+
+			FLatency = FLASH_ACR_LATENCY_0WS;
+
+			break;
+		}
+
+		case SYS_CLOCK_FREQ_64_MHZ:
+		{
+			osc_init.PLL.PLLM = RCC_PLLM_DIV4;
+			osc_init.PLL.PLLN = 32;
+			osc_init.PLL.PLLR = RCC_PLLR_DIV4;
+			// Don't care for these settings but set them anyway
+			osc_init.PLL.PLLP = RCC_PLLP_DIV4;
+			osc_init.PLL.PLLQ = RCC_PLLQ_DIV4;
+
+			clk_init.ClockType = (
+					RCC_CLOCKTYPE_SYSCLK |
+					RCC_CLOCKTYPE_HCLK |
+					RCC_CLOCKTYPE_PCLK1 |
+					RCC_CLOCKTYPE_PCLK2 |
+					RCC_CLOCKTYPE_HCLK2 |
+					RCC_CLOCKTYPE_HCLK4);
+			clk_init.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+			clk_init.AHBCLKDivider = RCC_SYSCLK_DIV2;
+			clk_init.AHBCLK4Divider = RCC_SYSCLK_DIV4; // set divider, so that flash latency used is FLASH_LATENCY_0
+			clk_init.APB1CLKDivider = RCC_HCLK_DIV8;
+			clk_init.APB2CLKDivider = RCC_HCLK_DIV8;
+
+			FLatency = FLASH_ACR_LATENCY_0WS;
+
+			break;
+		}
+
+		case SYS_CLOCK_FREQ_25_MHZ:
+		{
+			osc_init.PLL.PLLM = RCC_PLLM_DIV4;
+			osc_init.PLL.PLLN = 25;
+			osc_init.PLL.PLLR = RCC_PLLR_DIV8;
+			// Don't care for these settings but set them anyway
+			osc_init.PLL.PLLP = RCC_PLLP_DIV4;
+			osc_init.PLL.PLLQ = RCC_PLLQ_DIV4;
+
+			clk_init.ClockType = (
+					RCC_CLOCKTYPE_SYSCLK |
+					RCC_CLOCKTYPE_HCLK |
+					RCC_CLOCKTYPE_PCLK1 |
+					RCC_CLOCKTYPE_PCLK2 |
+					RCC_CLOCKTYPE_HCLK2 |
+					RCC_CLOCKTYPE_HCLK4);
+			clk_init.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+			clk_init.AHBCLKDivider = RCC_SYSCLK_DIV2;
+			clk_init.AHBCLK4Divider = RCC_SYSCLK_DIV4; // set divider, so that flash latency used is FLASH_LATENCY_0
+			clk_init.APB1CLKDivider = RCC_HCLK_DIV8;
+			clk_init.APB2CLKDivider = RCC_HCLK_DIV8;
+
+			FLatency = FLASH_ACR_LATENCY_0WS;
+
+			break;
+		}
+
+		default:
+			return;
+	}
 
 	if (HAL_RCC_OscConfig(&osc_init) != HAL_OK){
 		Error_handler();
 	}
 
-	memset(&clk_init, 0, sizeof(clk_init)); // set whole structure to 0
-	clk_init.ClockType = (
-			RCC_CLOCKTYPE_SYSCLK |
-			RCC_CLOCKTYPE_HCLK |
-			RCC_CLOCKTYPE_PCLK1 |
-			RCC_CLOCKTYPE_PCLK2 |
-			RCC_CLOCKTYPE_HCLK2 |
-			RCC_CLOCKTYPE_HCLK4);
-	clk_init.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-	clk_init.AHBCLKDivider = RCC_SYSCLK_DIV2;
-	clk_init.AHBCLK4Divider = RCC_SYSCLK_DIV4; // set divider, so that flash latency used is FLASH_LATENCY_0
-	clk_init.APB1CLKDivider = RCC_HCLK_DIV8;
-	clk_init.APB2CLKDivider = RCC_HCLK_DIV8;
-	if (HAL_RCC_ClockConfig(&clk_init, FLASH_LATENCY_0) != HAL_OK){
+	if (HAL_RCC_ClockConfig(&clk_init, FLatency) != HAL_OK){
 		Error_handler();
 	}
 
@@ -230,7 +253,6 @@ void SystemClockConfig(void) {
 	HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
 
 	HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
-
 }
 
 void UART1_Init(void) {

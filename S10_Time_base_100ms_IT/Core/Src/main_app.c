@@ -21,6 +21,8 @@ void Error_handler(void);
 void TIM1_Init(void);
 void GPIO_Init(void);
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
+
 int main(void) {
 	HAL_Init();
 	SystemClockConfig(SYS_CLOCK_FREQ_50_MHZ);
@@ -28,19 +30,18 @@ int main(void) {
 	TIM1_Init();
 	GPIO_Init();
 
-	// Start Timer
-	HAL_TIM_Base_Start(&htim1);
+	// Start Timer in interrupt mode
+	HAL_TIM_Base_Start_IT(&htim1);
 
 	while (1) {
-
-	// Loop until the update event flag is set
-	while(!(TIM1 -> SR & TIM_SR_UIF));
-	TIM1 -> SR = (0 << TIM_SR_UIF_Pos); // Reset Update Interrupt Flag (UIF)
-	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_5);
 
 	}
 
 	return 0;
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_5);
 }
 
 void GPIO_Init(void){

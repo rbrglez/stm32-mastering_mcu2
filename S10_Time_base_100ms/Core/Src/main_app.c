@@ -6,83 +6,19 @@
  */
 
 #include "main_app.h"
-#include "string.h"
-#include  "stdio.h"
 
-#define CLK_CONFIG_MSG_SIZE 380
-#define HEADER_BUFFER_SIZE 400
-#define APP_BUFFER_MSG_SIZE 300
-
-RCC_OscInitTypeDef osc_init;
-RCC_ClkInitTypeDef clk_init;
+RCC_OscInitTypeDef osc_init = {0};
+RCC_ClkInitTypeDef clk_init = {0};
 
 UART_HandleTypeDef huart1;
-
-char app_buffer_msg[APP_BUFFER_MSG_SIZE];
-char clk_config_msg[CLK_CONFIG_MSG_SIZE];
-char header_buffer[HEADER_BUFFER_SIZE];
-char buffer[32];
 
 void SystemClockConfig(uint8_t clk_freq);
 void UART1_Init(void);
 void Error_handler(void);
-void APP_Gen_Clock_Config_String(char *msg, uint32_t msg_size);
-void APP_Gen_Header_String(char *header_buffer, char *header_msg, uint32_t header_buffer_size);
 
 int main(void) {
 	HAL_Init();
 	UART1_Init();
-	// clear screen
-	memset(buffer, 0, sizeof(buffer));
-	strcpy(buffer, "\x1B[2J");
-	if(HAL_UART_Transmit(&huart1, (uint8_t*)buffer, 32, HAL_MAX_DELAY) != HAL_OK){
-		Error_handler();
-	}
-
-	// application start
-	APP_Gen_Header_String(app_buffer_msg, "The application is starting!", APP_BUFFER_MSG_SIZE);
-	if (HAL_UART_Transmit(&huart1, (uint8_t*) app_buffer_msg, strlen(app_buffer_msg), HAL_MAX_DELAY) != HAL_OK) {
-		Error_handler();
-	}
-
-	// Via Uart print current configured clock frequencies
-	APP_Gen_Header_String(header_buffer, "Clock Configuration Before initialization", HEADER_BUFFER_SIZE);
-	for(int i = 0; header_buffer[i] != '\0'; i++){
-		if(HAL_UART_Transmit(&huart1, (uint8_t*) (header_buffer + i), 1, HAL_MAX_DELAY) != HAL_OK){
-			Error_handler();
-		}
-	}
-
-	APP_Gen_Clock_Config_String(clk_config_msg, CLK_CONFIG_MSG_SIZE);
-	HAL_UART_Transmit(&huart1, (uint8_t*) clk_config_msg, strlen(clk_config_msg), HAL_MAX_DELAY);
-
-	// Configure clocks
-	SystemClockConfig(SYS_CLOCK_FREQ_50_MHZ);
-
-	// Reconfigure UART1, because clock which runs uart has been reconfigured
-	UART1_Init();
-
-	// Via Uart print new configured clock frequencies
-	APP_Gen_Header_String(app_buffer_msg, "Clock Configuration After initialization", APP_BUFFER_MSG_SIZE);
-	if (HAL_UART_Transmit(&huart1, (uint8_t*) app_buffer_msg, strlen(app_buffer_msg), HAL_MAX_DELAY) != HAL_OK) {
-		Error_handler();
-	}
-
-	APP_Gen_Clock_Config_String(clk_config_msg, CLK_CONFIG_MSG_SIZE);
-	HAL_UART_Transmit(&huart1, (uint8_t*) clk_config_msg, strlen(clk_config_msg), HAL_MAX_DELAY);
-
-	// deinitialize clock configurations
-	HAL_RCC_DeInit();
-	// Reconfigure sys clk
-	SystemClockConfig(SYS_CLOCK_FREQ_64_MHZ);
-	UART1_Init();
-
-	APP_Gen_Header_String(app_buffer_msg, "Reconfigured Clock", APP_BUFFER_MSG_SIZE);
-	if (HAL_UART_Transmit(&huart1, (uint8_t*) app_buffer_msg, strlen(app_buffer_msg), HAL_MAX_DELAY) != HAL_OK) {
-		Error_handler();
-	}
-	APP_Gen_Clock_Config_String(clk_config_msg, CLK_CONFIG_MSG_SIZE);
-	HAL_UART_Transmit(&huart1, (uint8_t*) clk_config_msg, strlen(clk_config_msg), HAL_MAX_DELAY);
 
 	while (1) {
 
@@ -91,54 +27,7 @@ int main(void) {
 	return 0;
 }
 
-void APP_Gen_Header_String(char *header_buffer, char *header_msg, uint32_t header_buffer_size){
-	//char symbol_buffer[100];
-	// clear array
-	memset(header_buffer, 0, header_buffer_size);
-
-	sprintf(
-			header_buffer,
-			"**********************************************************\r\n" \
-			"** %s \n\r" \
-			"**********************************************************\r\n",
-			header_msg
-	);
-}
-
-void APP_Gen_Clock_Config_String(char *msg, uint32_t msg_size){
-	// clear array
-	memset(msg, 0, msg_size);
-	// Generate string
-	sprintf(
-	    	msg,
-	        "*********************\r\n" \
-	        "** SYSTEM CLOCK\r\n" 		\
-	        "*********************\r\n" \
-	        "SYSCLK: %ldHz\r\n"			\
-	        "*********************\r\n" \
-	        "** HIGH-SPEED CLOCKS\r\n" 	\
-	        "*********************\r\n" \
-	        "HCLK:   %ldHz\r\n" 		\
-	        "HCLK2:  %ldHz\r\n" 		\
-	        "HCLK4:  %ldHz\r\n" 		\
-	        "*********************\r\n" \
-	        "** PERIPHERAL CLOCKS\r\n" 	\
-	        "*********************\r\n" \
-	        "PLCLK1: %ldHz\r\n"			\
-	        "PLCLK2: %ldHz\r\n"			\
-			"\r\n",
-			HAL_RCC_GetSysClockFreq(),
-			HAL_RCC_GetHCLKFreq(),
-			HAL_RCC_GetHCLK2Freq(),
-			HAL_RCC_GetHCLK4Freq(),
-			HAL_RCC_GetPCLK1Freq(),
-			HAL_RCC_GetPCLK2Freq()
-	);
-}
-
 void SystemClockConfig(uint8_t clk_freq){
-	memset(&clk_init, 0, sizeof(clk_init)); // set whole structure to 0
-	memset(&osc_init, 0, sizeof(osc_init)); // set whole structure to 0
 
 	uint32_t FLatency;
 

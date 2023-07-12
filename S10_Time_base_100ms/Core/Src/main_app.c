@@ -9,32 +9,59 @@
 
 RCC_OscInitTypeDef osc_init = {0};
 RCC_ClkInitTypeDef clk_init = {0};
+GPIO_InitTypeDef gpio_init = {0};
+
 UART_HandleTypeDef huart1;
 TIM_HandleTypeDef htim1;
+
 
 void SystemClockConfig(uint8_t clk_freq);
 void UART1_Init(void);
 void Error_handler(void);
 void TIM1_Init(void);
+void GPIO_Init(void);
 
 int main(void) {
 	HAL_Init();
 	SystemClockConfig(SYS_CLOCK_FREQ_50_MHZ);
 	UART1_Init();
+	TIM1_Init();
+	GPIO_Init();
+
+	// Start Timer
+	HAL_TIM_Base_Start(&htim1);
 
 	while (1) {
+
+	// Loop until the update event flag is set
+	while(!(TIM1 -> SR & TIM_SR_UIF));
+	TIM1 -> SR = (0 << TIM_SR_UIF_Pos); // Reset Update Interrupt Flag (UIF)
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_5);
 
 	}
 
 	return 0;
 }
 
+void GPIO_Init(void){
+	// GPIOB Clock enable
+	__HAL_RCC_GPIOB_CLK_ENABLE();
+
+	// Init GPIO
+	gpio_init.Pin = GPIO_PIN_5;
+	gpio_init.Mode = GPIO_MODE_OUTPUT_PP;
+	gpio_init.Pull = GPIO_NOPULL;
+	gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+
+	HAL_GPIO_Init(GPIOB, &gpio_init);
+}
+
 void TIM1_Init(void){
 	htim1.Instance = TIM1;
 
-	htim1.Init.Prescaler = 100 - 1; // Timer clock is 500 kHz
+	htim1.Init.Prescaler = 1000 - 1; // Timer clock is 50 kHz
 	htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-	htim1.Init.Period = (uint32_t)(5e4) - 1; // 100ms * 500kHz = 5e4
+	htim1.Init.Period = (uint32_t)(5e3) - 1; // 100ms * 50kHz = 5e3
 
 	if(HAL_TIM_Base_Init(&htim1) != HAL_OK){
 		Error_handler();

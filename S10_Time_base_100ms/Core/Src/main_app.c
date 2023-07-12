@@ -9,15 +9,17 @@
 
 RCC_OscInitTypeDef osc_init = {0};
 RCC_ClkInitTypeDef clk_init = {0};
-
 UART_HandleTypeDef huart1;
+TIM_HandleTypeDef htim1;
 
 void SystemClockConfig(uint8_t clk_freq);
 void UART1_Init(void);
 void Error_handler(void);
+void TIM1_Init(void);
 
 int main(void) {
 	HAL_Init();
+	SystemClockConfig(SYS_CLOCK_FREQ_50_MHZ);
 	UART1_Init();
 
 	while (1) {
@@ -25,6 +27,19 @@ int main(void) {
 	}
 
 	return 0;
+}
+
+void TIM1_Init(void){
+	htim1.Instance = TIM1;
+
+	htim1.Init.Prescaler = 100 - 1; // Timer clock is 500 kHz
+	htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim1.Init.Period = (uint32_t)(5e4) - 1; // 100ms * 500kHz = 5e4
+
+	if(HAL_TIM_Base_Init(&htim1) != HAL_OK){
+		Error_handler();
+	}
+
 }
 
 void SystemClockConfig(uint8_t clk_freq){
@@ -56,10 +71,11 @@ void SystemClockConfig(uint8_t clk_freq){
 					RCC_CLOCKTYPE_HCLK2 |
 					RCC_CLOCKTYPE_HCLK4);
 			clk_init.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-			clk_init.AHBCLKDivider = RCC_SYSCLK_DIV2;
+			clk_init.AHBCLKDivider = RCC_SYSCLK_DIV1;
+			clk_init.AHBCLK2Divider = RCC_SYSCLK_DIV2;
 			clk_init.AHBCLK4Divider = RCC_SYSCLK_DIV4; // set divider, so that flash latency used is FLASH_LATENCY_0
-			clk_init.APB1CLKDivider = RCC_HCLK_DIV8;
-			clk_init.APB2CLKDivider = RCC_HCLK_DIV8;
+			clk_init.APB1CLKDivider = RCC_HCLK_DIV1;
+			clk_init.APB2CLKDivider = RCC_HCLK_DIV1;
 
 			FLatency = FLASH_ACR_LATENCY_0WS;
 

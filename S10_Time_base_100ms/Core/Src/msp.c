@@ -5,9 +5,7 @@
  *      Author: Rene
  */
 
-#include "stm32wbxx_hal.h"
 #include "main_app.h"
-
 
 void HAL_MspInit(void)
 {
@@ -23,7 +21,6 @@ void HAL_MspInit(void)
 	SCB -> SHCSR |= SCB_SHCSR_USGFAULTENA_Msk;
 	SCB -> SHCSR |= SCB_SHCSR_BUSFAULTENA_Msk;
 	SCB -> SHCSR |= SCB_SHCSR_MEMFAULTENA_Msk;
-
 
 	// 3.) Configure the priority for the system exceptions
 	HAL_NVIC_SetPriority(MemoryManagement_IRQn, MEM_MNG_PRIORITY, DEFAULT_SUB_PRIORITY);
@@ -59,4 +56,16 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart)
 	HAL_NVIC_EnableIRQ(USART1_IRQn);
 	HAL_NVIC_SetPriority(USART1_IRQn, UART1_PRIORITY, DEFAULT_SUB_PRIORITY);
 
+}
+
+void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim){
+
+	// 1.) Enable the clock for the TIM1 peripheral
+	__HAL_RCC_TIM1_CLK_ENABLE();
+
+	// 2.) Enable IRQ of TIM1
+	HAL_NVIC_EnableIRQ(TIM1_UP_TIM16_IRQn);
+
+	// 3.) Setup the priority of IRQ
+	HAL_NVIC_SetPriority(TIM1_UP_TIM16_IRQn, TIM1_PRIORITY, DEFAULT_SUB_PRIORITY);
 }

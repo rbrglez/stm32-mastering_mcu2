@@ -12,27 +12,38 @@ RCC_ClkInitTypeDef clk_init = {0};
 GPIO_InitTypeDef gpio_init = {0};
 
 UART_HandleTypeDef huart1;
-TIM_HandleTypeDef htim1;
+TIM_HandleTypeDef htim2;
+TIM_IC_InitTypeDef tim2_ch1_init = {0};
 
 void SystemClockConfig(uint8_t clk_freq);
 void UART1_Init(void);
 void Error_handler(void);
-void TIM1_Init(void);
+void TIM2_Init(void);
 void GPIO_Init(void);
+
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim);
 
 int main(void) {
 	HAL_Init();
 	SystemClockConfig(SYS_CLOCK_FREQ_50_MHZ);
 	UART1_Init();
-	TIM1_Init();
+	TIM2_Init();
 	GPIO_Init();
 
-	// Add Your code here
+	// Start TIM2 in Input capture mode
+	if(HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1) != HAL_OK){
+		Error_handler();
+	}
+
 	while (1) {
 
 	}
 
 	return 0;
+}
+
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim){
+	UNUSED(htim);
 }
 
 void GPIO_Init(void){
@@ -48,17 +59,27 @@ void GPIO_Init(void){
 	HAL_GPIO_Init(GPIOB, &gpio_init);
 }
 
-void TIM1_Init(void){
-	htim1.Instance = TIM1;
+void TIM2_Init(void){
+	htim2.Instance = TIM2;
 
-	htim1.Init.Prescaler = 1000 - 1; // Timer clock is 50 kHz
-	htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-	htim1.Init.Period = (uint32_t)(5e3) - 1; // 100ms * 50kHz = 5e3
+	htim2.Init.Prescaler = 2 - 1; // Timer clock is 25 MHz
+	htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim2.Init.Period = 0xFFFFFFFF; // maximum value
 
-	if(HAL_TIM_Base_Init(&htim1) != HAL_OK){
+//	htim2.Channel = HAL_TIM_ACTIVE_CHANNEL_1; // not used anywhere?
+
+	if(HAL_TIM_IC_Init(&htim2) != HAL_OK){
 		Error_handler();
 	}
 
+	tim2_ch1_init.ICPolarity = TIM_ICPOLARITY_RISING;
+	tim2_ch1_init.ICSelection = TIM_ICSELECTION_DIRECTTI;
+	tim2_ch1_init.ICPrescaler = TIM_ICPSC_DIV1;
+	tim2_ch1_init.ICFilter = 0;
+
+	if(HAL_TIM_IC_ConfigChannel(&htim2, &tim2_ch1_init, TIM_CHANNEL_1) != HAL_OK){
+		Error_handler();
+	}
 }
 
 void SystemClockConfig(uint8_t clk_freq){

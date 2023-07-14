@@ -15,11 +15,23 @@ UART_HandleTypeDef huart1;
 TIM_HandleTypeDef htim2;
 TIM_IC_InitTypeDef tim2_ch1_init = {0};
 
+uint32_t diff_input_capture = 0;
+uint32_t period_meas_ns = 0;
+uint32_t freq_meas_Hz = 0;
+
+uint32_t freq_tim2_Hz = 0;
+uint32_t period_tim2_ns = 0;
+
+uint8_t IC_capture_Callback_Done = 0;
+
 void SystemClockConfig(uint8_t clk_freq);
 void UART1_Init(void);
 void Error_handler(void);
 void TIM2_Init(void);
 void GPIO_Init(void);
+void LSE_Configuration(void);
+
+uint32_t APP_GET_TIM2_Freq(TIM_HandleTypeDef *htim);
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim);
 
@@ -29,6 +41,7 @@ int main(void) {
 	UART1_Init();
 	TIM2_Init();
 	GPIO_Init();
+	LSE_Configuration();
 
 	// Start TIM2 in Input capture mode
 	if(HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1) != HAL_OK){
@@ -36,14 +49,85 @@ int main(void) {
 	}
 
 	while (1) {
+		// when input_capture_callback is done,
+		// calculate frequency and period of timer signal and
+		// calculate frequency and period of measured signal
+		if (IC_capture_Callback_Done == 1){
+			freq_tim2_Hz = APP_GET_TIM2_Freq(&htim2);
+			period_tim2_ns = (uint32_t)1e9 / freq_tim2_Hz;
 
+			period_meas_ns = diff_input_capture * period_tim2_ns;
+			freq_meas_Hz = (uint32_t)1e9 / period_meas_ns;
+
+			IC_capture_Callback_Done = 0;
+		}
 	}
-
 	return 0;
 }
 
+/**
+  * @brief  This function returns frequency of timer2 in Hz.
+  * @param  htim TIM  handle
+  * @note  	TIM2 resides on bus APB1 and uses PCLK1 clock
+  * @note 	Timer clock (Reference manual chapter 8.2.17)
+  * 		The timer clock frequencies are automatically defined by hardware. There are two cases:
+  * 		1.) If the APB prescaler equals 1, the timer clock frequencies are set to the same
+  * 			frequency as that of the APB domain.
+  * 		2. Otherwise, they are set to twice (×2) the frequency of the APB domain.
+  * @retval timer2 frequency in Hz
+  */
+uint32_t APP_GET_TIM2_Freq(TIM_HandleTypeDef *htim){
+
+	// get frequency of TIM2
+	uint32_t freq_tim2_Hz;
+	uint32_t apb1_prescaler;
+
+	apb1_prescaler = LL_RCC_GetAPB1Prescaler();
+
+	// Only defined for TIM2!
+	if(htim->Instance != TIM2){
+		Error_handler();
+		return -1;
+	}
+	else{
+		if(apb1_prescaler == LL_RCC_APB1_DIV_1){
+			// PCLK1 Freq is not multiplied by 2
+			freq_tim2_Hz = HAL_RCC_GetPCLK1Freq() / (htim->Init.Prescaler + 1);
+		}
+		else{
+			// PCLK1 Freq IS multiplied by 2
+			freq_tim2_Hz = (HAL_RCC_GetPCLK1Freq() * 2) / (htim->Init.Prescaler + 1);
+		}
+		return freq_tim2_Hz;
+	}
+}
+
+void LSE_Configuration(void){
+	RCC_OscInitTypeDef lse_osc_init = {0};
+
+	// Initialize oscillator
+	lse_osc_init.OscillatorType = RCC_OSCILLATORTYPE_LSE;
+	lse_osc_init.LSEState = RCC_LSE_ON;
+
+	// Configure LSE
+	if (HAL_RCC_OscConfig(&lse_osc_init) != HAL_OK){
+		Error_handler();
+	}
+
+	// Microcontroller Output Configuration
+	// Connect LSE pin to PA8 output
+	HAL_RCC_MCOConfig(RCC_MCO1_PA8, RCC_MCO1SOURCE_LSE, RCC_MCODIV_1);
+}
+
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim){
-	UNUSED(htim);
+	static uint32_t prev_input_capture;
+	static uint32_t curr_input_capture;
+
+	prev_input_capture = curr_input_capture;
+	curr_input_capture = __HAL_TIM_GET_COMPARE(htim, TIM_CHANNEL_1);
+	diff_input_capture = curr_input_capture - prev_input_capture;
+
+	IC_capture_Callback_Done = 1;
 }
 
 void GPIO_Init(void){
@@ -66,8 +150,6 @@ void TIM2_Init(void){
 	htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
 	htim2.Init.Period = 0xFFFFFFFF; // maximum value
 
-//	htim2.Channel = HAL_TIM_ACTIVE_CHANNEL_1; // not used anywhere?
-
 	if(HAL_TIM_IC_Init(&htim2) != HAL_OK){
 		Error_handler();
 	}
@@ -83,7 +165,6 @@ void TIM2_Init(void){
 }
 
 void SystemClockConfig(uint8_t clk_freq){
-
 	uint32_t FLatency;
 
 	// Initialize oscillator

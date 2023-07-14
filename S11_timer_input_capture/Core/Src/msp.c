@@ -79,3 +79,15 @@ void HAL_TIM_IC_MspInit(TIM_HandleTypeDef *htim){
 	// 4.) Setup the priority of IRQ
 	HAL_NVIC_SetPriority(TIM2_IRQn, TIM2_PRIORITY, DEFAULT_SUB_PRIORITY);
 }
+
+void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim){
+
+	// 1.) Enable the clock for the TIM16 peripheral
+	__HAL_RCC_TIM16_CLK_ENABLE();
+
+	// 2.) Enable IRQ of TIM16
+	HAL_NVIC_EnableIRQ(TIM1_UP_TIM16_IRQn);
+
+	// 3.) Setup the priority of IRQ
+	HAL_NVIC_SetPriority(TIM1_UP_TIM16_IRQn, TIM16_PRIORITY, DEFAULT_SUB_PRIORITY);
+}

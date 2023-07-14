@@ -6,6 +6,8 @@
  */
 
 #include "main_app.h"
+#include "string.h"
+#include "stdio.h"
 
 RCC_OscInitTypeDef osc_init = {0};
 RCC_ClkInitTypeDef clk_init = {0};
@@ -30,6 +32,8 @@ void Error_handler(void);
 void TIM2_Init(void);
 void GPIO_Init(void);
 void LSE_Configuration(void);
+
+char usr_msg[100];
 
 uint32_t APP_GET_TIM2_Freq(TIM_HandleTypeDef *htim);
 
@@ -60,6 +64,9 @@ int main(void) {
 			freq_meas_Hz = (uint32_t)1e9 / period_meas_ns;
 
 			IC_capture_Callback_Done = 0;
+
+			sprintf(usr_msg, "Measured Frequency: %luHz\n\r", freq_meas_Hz);
+			HAL_UART_Transmit(&huart1, (uint8_t*)usr_msg, strlen(usr_msg), HAL_MAX_DELAY);
 		}
 	}
 	return 0;

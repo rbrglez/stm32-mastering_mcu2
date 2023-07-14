@@ -7,6 +7,7 @@
 #include "it.h"
 
 extern TIM_HandleTypeDef htim2;
+extern TIM_HandleTypeDef htim16;
 
 void SysTick_Handler(void){
 	HAL_IncTick();
@@ -15,4 +16,8 @@ void SysTick_Handler(void){
 
 void TIM2_IRQHandler(void){
 	HAL_TIM_IRQHandler(&htim2);
+}
+
+void TIM1_UP_TIM16_IRQHandler(void){
+	HAL_TIM_IRQHandler(&htim16);
 }

@@ -16,6 +16,7 @@ GPIO_InitTypeDef gpio_init = {0};
 UART_HandleTypeDef huart1;
 TIM_HandleTypeDef htim2;
 TIM_IC_InitTypeDef tim2_ch1_init = {0};
+TIM_HandleTypeDef htim16;
 
 uint32_t diff_input_capture = 0;
 uint32_t period_meas_ns = 0;
@@ -30,7 +31,9 @@ void SystemClockConfig(uint8_t clk_freq);
 void UART1_Init(void);
 void Error_handler(void);
 void TIM2_Init(void);
-void GPIO_Init(void);
+void TIM16_Init(void);
+void BLUE_LED_Init(void);
+void D7_Init(void);
 void LSE_Configuration(void);
 
 char usr_msg[100];
@@ -38,14 +41,22 @@ char usr_msg[100];
 uint32_t APP_GET_TIM2_Freq(TIM_HandleTypeDef *htim);
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim);
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
 
 int main(void) {
 	HAL_Init();
 	SystemClockConfig(SYS_CLOCK_FREQ_50_MHZ);
 	UART1_Init();
 	TIM2_Init();
-	GPIO_Init();
+	TIM16_Init();
+	BLUE_LED_Init();
+	D7_Init();
 	LSE_Configuration();
+
+	// Start TIM16 in basic mode
+	if(HAL_TIM_Base_Start_IT(&htim16) != HAL_OK){
+		Error_handler();
+	}
 
 	// Start TIM2 in Input capture mode
 	if(HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1) != HAL_OK){
@@ -70,6 +81,27 @@ int main(void) {
 		}
 	}
 	return 0;
+}
+
+void D7_Init(void){
+	GPIO_InitTypeDef d7_init = {0};
+	// Initialize PC_13 (D7) pin as output
+
+	// GPIOC Clock enable
+	__HAL_RCC_GPIOC_CLK_ENABLE();
+
+	// Init GPIO
+	d7_init.Pin = GPIO_PIN_13;
+	d7_init.Mode = GPIO_MODE_OUTPUT_PP;
+	d7_init.Pull = GPIO_NOPULL;
+	d7_init.Speed = GPIO_SPEED_FREQ_LOW;
+
+	HAL_GPIO_Init(GPIOC, &d7_init);
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_5);
+	HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
 }
 
 /**
@@ -137,7 +169,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim){
 	IC_capture_Callback_Done = 1;
 }
 
-void GPIO_Init(void){
+void BLUE_LED_Init(void){
 	// GPIOB Clock enable
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 
@@ -153,7 +185,7 @@ void GPIO_Init(void){
 void TIM2_Init(void){
 	htim2.Instance = TIM2;
 
-	htim2.Init.Prescaler = 2 - 1; // Timer clock is 25 MHz
+	htim2.Init.Prescaler = 2 - 1; // Timer clock is halved
 	htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
 	htim2.Init.Period = 0xFFFFFFFF; // maximum value
 
@@ -167,6 +199,18 @@ void TIM2_Init(void){
 	tim2_ch1_init.ICFilter = 0;
 
 	if(HAL_TIM_IC_ConfigChannel(&htim2, &tim2_ch1_init, TIM_CHANNEL_1) != HAL_OK){
+		Error_handler();
+	}
+}
+
+void TIM16_Init(void){
+	htim16.Instance = TIM16;
+
+	htim16.Init.Prescaler = (uint16_t)1e3 - 1;
+	htim16.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim16.Init.Period = (uint16_t)1e3 - 1; // set period
+
+	if(HAL_TIM_Base_Init(&htim16) != HAL_OK){
 		Error_handler();
 	}
 }

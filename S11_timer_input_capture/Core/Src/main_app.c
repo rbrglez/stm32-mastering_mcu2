@@ -254,7 +254,7 @@ void SystemClockConfig(uint8_t clk_freq){
 					RCC_CLOCKTYPE_HCLK2 |
 					RCC_CLOCKTYPE_HCLK4);
 			clk_init.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-			clk_init.AHBCLKDivider = RCC_SYSCLK_DIV2;
+			clk_init.AHBCLKDivider = RCC_SYSCLK_DIV1;
 			clk_init.AHBCLK4Divider = RCC_SYSCLK_DIV4; // set divider, so that flash latency used is FLASH_LATENCY_0
 			clk_init.APB1CLKDivider = RCC_HCLK_DIV8;
 			clk_init.APB2CLKDivider = RCC_HCLK_DIV8;

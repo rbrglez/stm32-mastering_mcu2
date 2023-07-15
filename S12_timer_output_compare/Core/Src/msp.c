@@ -58,14 +58,29 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart)
 
 }
 
-void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim){
+void HAL_TIM_IC_MspInit(TIM_HandleTypeDef *htim){
+//	//TODO: ADD this logic
+//	if(htim->Instance == TIM2){
+//
+//	}
 
-	// 1.) Enable the clock for the TIM1 peripheral
-	__HAL_RCC_TIM1_CLK_ENABLE();
+	GPIO_InitTypeDef gpio_init;
 
-	// 2.) Enable IRQ of TIM1
-	HAL_NVIC_EnableIRQ(TIM1_UP_TIM16_IRQn);
+	// 1.) Enable peripheral clocks
+	__HAL_RCC_TIM2_CLK_ENABLE(); // Clock for TIM2
+	__HAL_RCC_GPIOA_CLK_ENABLE(); // Clock for TIM2 CH1
 
-	// 3.) Setup the priority of IRQ
-	HAL_NVIC_SetPriority(TIM1_UP_TIM16_IRQn, TIM1_PRIORITY, DEFAULT_SUB_PRIORITY);
+	// 2.) Configure a GPIO to behave as timer 2 channel 1
+	gpio_init.Pin = GPIO_PIN_0;
+	gpio_init.Mode = GPIO_MODE_AF_PP;
+	gpio_init.Alternate = GPIO_AF1_TIM2;
+
+	HAL_GPIO_Init(GPIOA, &gpio_init);
+
+
+	// 3.) Enable IRQ of TIM2
+	HAL_NVIC_EnableIRQ(TIM2_IRQn);
+
+	// 4.) Setup the priority of IRQ
+	HAL_NVIC_SetPriority(TIM2_IRQn, TIM2_PRIORITY, DEFAULT_SUB_PRIORITY);
 }

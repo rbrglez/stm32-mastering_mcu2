@@ -5,37 +5,141 @@
  *      Author: Rene
  */
 
+/*
+ ************************************************************************************************
+ ** Library Includes
+ ************************************************************************************************
+ */
 #include "main_app.h"
-
+#include "string.h"
+#include "stdio.h"
+/*
+ ************************************************************************************************
+ ** Variables
+ ************************************************************************************************
+ */
 RCC_OscInitTypeDef osc_init = {0};
 RCC_ClkInitTypeDef clk_init = {0};
-GPIO_InitTypeDef gpio_init = {0};
 
 UART_HandleTypeDef huart1;
-TIM_HandleTypeDef htim1;
+TIM_HandleTypeDef htim2;
 
+uint32_t diff_input_capture = 0;
+uint32_t period_meas_ns = 0;
+uint32_t freq_meas_Hz = 0;
+
+uint32_t freq_tim2_Hz = 0;
+uint32_t period_tim2_ns = 0;
+
+uint8_t IC_capture_Callback_Done = 0;
+
+char usr_msg[100];
+
+/*
+ ************************************************************************************************
+ ** Function Prototypes
+ ************************************************************************************************
+ */
 void SystemClockConfig(uint8_t clk_freq);
 void UART1_Init(void);
 void Error_handler(void);
-void TIM1_Init(void);
+void TIM2_Init(void);
 void GPIO_Init(void);
+void LSE_Configuration(void);
 
+// Callbacks
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim);
+void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim);
+
+/*
+ ************************************************************************************************
+ ** MAIN
+ ************************************************************************************************
+ */
 int main(void) {
 	HAL_Init();
 	SystemClockConfig(SYS_CLOCK_FREQ_50_MHZ);
 	UART1_Init();
-	TIM1_Init();
+	TIM2_Init();
 	GPIO_Init();
+	LSE_Configuration();
 
-	// Add Your code here
+	// Start timer 2 in Input Capture mode
+	if(HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1) != HAL_OK){
+		Error_handler();
+	}
+
 	while (1) {
+		// when input_capture_callback is done,
+		// calculate frequency and period of timer signal and
+		// calculate frequency and period of measured signal
+		if (IC_capture_Callback_Done == 1){
+			freq_tim2_Hz = 25000000;
+			period_tim2_ns = (uint32_t)1e9 / freq_tim2_Hz;
 
+			period_meas_ns = diff_input_capture * period_tim2_ns;
+			freq_meas_Hz = (uint32_t)1e9 / period_meas_ns;
+
+			IC_capture_Callback_Done = 0;
+
+			sprintf(usr_msg, "Measured Frequency: %luHz\n\r", freq_meas_Hz);
+			HAL_UART_Transmit(&huart1, (uint8_t*)usr_msg, strlen(usr_msg), HAL_MAX_DELAY);
+		}
 	}
 
 	return 0;
 }
 
+/*
+ ************************************************************************************************
+ ** Function Declaration
+ ************************************************************************************************
+ */
+
+void LSE_Configuration(void){
+	RCC_OscInitTypeDef lse_osc_init = {0};
+
+	// Initialize oscillator
+	lse_osc_init.OscillatorType = RCC_OSCILLATORTYPE_LSE;
+	lse_osc_init.LSEState = RCC_LSE_ON;
+
+	// Configure LSE
+	if (HAL_RCC_OscConfig(&lse_osc_init) != HAL_OK){
+		Error_handler();
+	}
+
+	// Microcontroller Output Configuration
+	// Connect LSE pin to PA8 output
+	HAL_RCC_MCOConfig(RCC_MCO1_PA8, RCC_MCO1SOURCE_LSE, RCC_MCODIV_1);
+}
+
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim){
+	static uint32_t prev_input_capture;
+	static uint32_t curr_input_capture;
+
+	prev_input_capture = curr_input_capture;
+	curr_input_capture = __HAL_TIM_GET_COMPARE(htim, TIM_CHANNEL_1);
+	diff_input_capture = curr_input_capture - prev_input_capture;
+
+	IC_capture_Callback_Done = 1;
+}
+
+void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim){
+//	tim2_ch1_init.Pulse = tim2_ch1_init.Pulse + (uint16_t)(25e3); // generate 500Hz signals
+//
+//	if(HAL_TIM_OC_ConfigChannel(&htim2, &tim2_ch1_init, TIM_CHANNEL_1) != HAL_OK){
+//		Error_handler();
+//	}
+}
+
 void GPIO_Init(void){
+	GPIO_InitTypeDef gpio_init = {0};
+
+	/*
+	 *****************************************
+	 ** Configure Blue LED
+	 *****************************************
+	 */
 	// GPIOB Clock enable
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 
@@ -48,17 +152,29 @@ void GPIO_Init(void){
 	HAL_GPIO_Init(GPIOB, &gpio_init);
 }
 
-void TIM1_Init(void){
-	htim1.Instance = TIM1;
+void TIM2_Init(void){
 
-	htim1.Init.Prescaler = 1000 - 1; // Timer clock is 50 kHz
-	htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-	htim1.Init.Period = (uint32_t)(5e3) - 1; // 100ms * 50kHz = 5e3
+	htim2.Instance = TIM2;
 
-	if(HAL_TIM_Base_Init(&htim1) != HAL_OK){
+	// TIM2 clock is 25 MHz
+	htim2.Init.Prescaler = 2 - 1; // Timer clock is halved
+	htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim2.Init.Period = 0xFFFFFFFF; // maximum value
+
+	if(HAL_TIM_IC_Init(&htim2) != HAL_OK){
 		Error_handler();
 	}
 
+	TIM_IC_InitTypeDef ic_ch1_init = {0};
+
+	ic_ch1_init.ICPolarity = TIM_ICPOLARITY_RISING;
+	ic_ch1_init.ICSelection = TIM_ICSELECTION_DIRECTTI;
+	ic_ch1_init.ICPrescaler = TIM_ICPSC_DIV1;
+	ic_ch1_init.ICFilter = 0;
+
+	if(HAL_TIM_IC_ConfigChannel(&htim2, &ic_ch1_init, TIM_CHANNEL_1) != HAL_OK){
+		Error_handler();
+	}
 }
 
 void SystemClockConfig(uint8_t clk_freq){

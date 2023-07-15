@@ -22,6 +22,7 @@ RCC_OscInitTypeDef osc_init = {0};
 RCC_ClkInitTypeDef clk_init = {0};
 
 UART_HandleTypeDef huart1;
+TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim17;
 
@@ -44,6 +45,7 @@ char usr_msg[100];
  */
 void SystemClockConfig(uint8_t clk_freq);
 void UART1_Init(void);
+void TIM1_Init(void);
 void TIM2_Init(void);
 void TIM17_Init(void);
 void GPIO_Init(void);
@@ -64,6 +66,7 @@ int main(void) {
 	HAL_Init();
 	SystemClockConfig(SYS_CLOCK_FREQ_50_MHZ);
 	UART1_Init();
+	TIM1_Init();
 	TIM2_Init();
 	TIM17_Init();
 	GPIO_Init();
@@ -76,6 +79,11 @@ int main(void) {
 
 	// Start timer17 in base mode
 	if(HAL_TIM_Base_Start_IT(&htim17) != HAL_OK){
+		Error_handler();
+	}
+
+	// Start timer1 in Output Compare mode
+	if(HAL_TIM_OC_Start_IT(&htim1, TIM_CHANNEL_1) != HAL_OK){
 		Error_handler();
 	}
 
@@ -118,36 +126,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	send_msg = 1;
 }
 
-void TIM17_Init(void){
-	htim17.Instance =  TIM17;
-
-	// If timer input clock is 50MHz, then TIM17 triggers once every second
-	htim17.Init.Prescaler = (uint16_t)50e3 - 1;
-	htim17.Init.CounterMode = TIM_COUNTERMODE_UP;
-	htim17.Init.Period = (uint16_t)1e3 - 1;
-
-	if(HAL_TIM_Base_Init(&htim17) != HAL_OK){
-		Error_handler();
-	}
-}
-
-void LSE_Configuration(void){
-	RCC_OscInitTypeDef lse_osc_init = {0};
-
-	// Initialize oscillator
-	lse_osc_init.OscillatorType = RCC_OSCILLATORTYPE_LSE;
-	lse_osc_init.LSEState = RCC_LSE_ON;
-
-	// Configure LSE
-	if (HAL_RCC_OscConfig(&lse_osc_init) != HAL_OK){
-		Error_handler();
-	}
-
-	// Microcontroller Output Configuration
-	// Connect LSE pin to PA8 output
-	HAL_RCC_MCOConfig(RCC_MCO1_PA8, RCC_MCO1SOURCE_LSE, RCC_MCODIV_1);
-}
-
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim){
 	static uint32_t prev_input_capture;
 	static uint32_t curr_input_capture;
@@ -165,26 +143,31 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim){
 //	if(HAL_TIM_OC_ConfigChannel(&htim2, &tim2_ch1_init, TIM_CHANNEL_1) != HAL_OK){
 //		Error_handler();
 //	}
+
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_1);
 }
 
-void GPIO_Init(void){
-	GPIO_InitTypeDef gpio_init = {0};
+void TIM1_Init(void){
 
-	/*
-	 *****************************************
-	 ** Configure Blue, Green and Red LED
-	 *****************************************
-	 */
-	// GPIOB Clock enable
-	__HAL_RCC_GPIOB_CLK_ENABLE();
+	htim1.Instance = TIM1;
 
-	// Init GPIO
-	gpio_init.Pin = GPIO_PIN_5 | GPIO_PIN_0 | GPIO_PIN_1;
-	gpio_init.Mode = GPIO_MODE_OUTPUT_PP;
-	gpio_init.Pull = GPIO_NOPULL;
-	gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+	htim1.Init.Prescaler = 50 - 1;
+	htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim1.Init.Period = 125 - 1;
 
-	HAL_GPIO_Init(GPIOB, &gpio_init);
+	if(HAL_TIM_OC_Init(&htim1) != HAL_OK){
+		Error_handler();
+	}
+
+	TIM_OC_InitTypeDef oc_ch1_init = {0};
+
+	oc_ch1_init.OCMode = TIM_OCMODE_TOGGLE;
+	oc_ch1_init.Pulse = (htim1.Init.Period + 1) / 2;
+	oc_ch1_init.OCPolarity = TIM_OCPOLARITY_HIGH;
+
+	if(HAL_TIM_OC_ConfigChannel(&htim1, &oc_ch1_init, TIM_CHANNEL_1) != HAL_OK){
+		Error_handler();
+	}
 }
 
 void TIM2_Init(void){
@@ -210,6 +193,71 @@ void TIM2_Init(void){
 	if(HAL_TIM_IC_ConfigChannel(&htim2, &ic_ch1_init, TIM_CHANNEL_1) != HAL_OK){
 		Error_handler();
 	}
+}
+
+void TIM17_Init(void){
+	htim17.Instance =  TIM17;
+
+	// If timer input clock is 50MHz, then TIM17 triggers once every second
+	htim17.Init.Prescaler = (uint16_t)50e3 - 1;
+	htim17.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim17.Init.Period = (uint16_t)1e3 - 1;
+
+	if(HAL_TIM_Base_Init(&htim17) != HAL_OK){
+		Error_handler();
+	}
+}
+
+void UART1_Init(void) {
+	huart1.Instance = USART1;
+
+	huart1.Init.BaudRate = 115200;
+	huart1.Init.WordLength = UART_WORDLENGTH_8B;
+	huart1.Init.StopBits = UART_STOPBITS_1;
+	huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+	huart1.Init.Mode = UART_MODE_TX_RX;
+
+	if (HAL_UART_Init(&huart1) != HAL_OK) {
+		// There is a problem
+		Error_handler();
+	}
+}
+
+void GPIO_Init(void){
+	GPIO_InitTypeDef gpio_init = {0};
+
+	/*
+	 *****************************************
+	 ** Configure Blue, Green and Red LED
+	 *****************************************
+	 */
+	// GPIOB Clock enable
+	__HAL_RCC_GPIOB_CLK_ENABLE();
+
+	// Init GPIO
+	gpio_init.Pin = GPIO_PIN_5 | GPIO_PIN_0 | GPIO_PIN_1;
+	gpio_init.Mode = GPIO_MODE_OUTPUT_PP;
+	gpio_init.Pull = GPIO_NOPULL;
+	gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+
+	HAL_GPIO_Init(GPIOB, &gpio_init);
+}
+
+void LSE_Configuration(void){
+	RCC_OscInitTypeDef lse_osc_init = {0};
+
+	// Initialize oscillator
+	lse_osc_init.OscillatorType = RCC_OSCILLATORTYPE_LSE;
+	lse_osc_init.LSEState = RCC_LSE_ON;
+
+	// Configure LSE
+	if (HAL_RCC_OscConfig(&lse_osc_init) != HAL_OK){
+		Error_handler();
+	}
+
+	// Microcontroller Output Configuration
+	// Connect LSE pin to PA15 output
+	HAL_RCC_MCOConfig(RCC_MCO3_PA15, RCC_MCO1SOURCE_LSE, RCC_MCODIV_1);
 }
 
 void SystemClockConfig(uint8_t clk_freq){
@@ -328,21 +376,6 @@ void SystemClockConfig(uint8_t clk_freq){
 	HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
 
 	HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
-}
-
-void UART1_Init(void) {
-	huart1.Instance = USART1;
-
-	huart1.Init.BaudRate = 115200;
-	huart1.Init.WordLength = UART_WORDLENGTH_8B;
-	huart1.Init.StopBits = UART_STOPBITS_1;
-	huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-	huart1.Init.Mode = UART_MODE_TX_RX;
-
-	if (HAL_UART_Init(&huart1) != HAL_OK) {
-		// There is a problem
-		Error_handler();
-	}
 }
 
 void Error_handler(void) {

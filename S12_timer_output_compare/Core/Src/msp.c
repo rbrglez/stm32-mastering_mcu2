@@ -102,3 +102,30 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim){
 	}
 }
 
+void HAL_TIM_OC_MspInit(TIM_HandleTypeDef *htim){
+	GPIO_InitTypeDef ch1_init;
+
+	if(htim->Instance == TIM1){
+		// 1.) Enable peripheral clocks
+		__HAL_RCC_TIM1_CLK_ENABLE(); // Clock for TIM1
+		__HAL_RCC_GPIOA_CLK_ENABLE(); // Clock for TIM1 CH1
+
+		// 2.) Configure a GPIO to behave as timer 1 channel 1
+		ch1_init.Pin = GPIO_PIN_8;
+		ch1_init.Mode = GPIO_MODE_AF_PP;
+		ch1_init.Alternate = GPIO_AF1_TIM1;
+
+		HAL_GPIO_Init(GPIOA, &ch1_init);
+
+		// 3.) Enable IRQ of TIM1
+		HAL_NVIC_EnableIRQ(TIM1_CC_IRQn);
+
+		// 4.) Setup the priority of IRQ
+		HAL_NVIC_SetPriority(TIM1_CC_IRQn, TIM1_PRIORITY, DEFAULT_SUB_PRIORITY);
+	}
+	else{
+		// If htim.Instance is NOT TIM1 go to error state
+		Error_handler();
+	}
+}
+

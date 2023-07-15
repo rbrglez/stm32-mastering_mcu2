@@ -6,6 +6,7 @@
  */
 #include "it.h"
 
+extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim17;
 extern UART_HandleTypeDef huart1;
@@ -25,4 +26,8 @@ void TIM1_TRG_COM_TIM17_IRQHandler(void){
 
 void USART1_IRQHandler(void){
 	HAL_UART_IRQHandler(&huart1);
+}
+
+void TIM1_CC_IRQHandler(void){
+	HAL_TIM_IRQHandler(&htim1);
 }

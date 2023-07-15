@@ -23,6 +23,7 @@ RCC_ClkInitTypeDef clk_init = {0};
 
 UART_HandleTypeDef huart1;
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim17;
 
 uint32_t diff_input_capture = 0;
 uint32_t period_meas_ns = 0;
@@ -42,14 +43,15 @@ char usr_msg[100];
  */
 void SystemClockConfig(uint8_t clk_freq);
 void UART1_Init(void);
-void Error_handler(void);
 void TIM2_Init(void);
+void TIM17_Init(void);
 void GPIO_Init(void);
 void LSE_Configuration(void);
 
 // Callbacks
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim);
 void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim);
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
 
 /*
  ************************************************************************************************
@@ -61,11 +63,17 @@ int main(void) {
 	SystemClockConfig(SYS_CLOCK_FREQ_50_MHZ);
 	UART1_Init();
 	TIM2_Init();
+	TIM17_Init();
 	GPIO_Init();
 	LSE_Configuration();
 
 	// Start timer 2 in Input Capture mode
 	if(HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1) != HAL_OK){
+		Error_handler();
+	}
+
+	// Start timer17 in base mode
+	if(HAL_TIM_Base_Start_IT(&htim17) != HAL_OK){
 		Error_handler();
 	}
 
@@ -95,6 +103,22 @@ int main(void) {
  ** Function Declaration
  ************************************************************************************************
  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_5);
+}
+
+void TIM17_Init(void){
+	htim17.Instance =  TIM17;
+
+	// If timer input clock is 50MHz, then TIM17 triggers once every second
+	htim17.Init.Prescaler = (uint16_t)50e3 - 1;
+	htim17.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim17.Init.Period = (uint16_t)1e3 - 1;
+
+	if(HAL_TIM_Base_Init(&htim17) != HAL_OK){
+		Error_handler();
+	}
+}
 
 void LSE_Configuration(void){
 	RCC_OscInitTypeDef lse_osc_init = {0};

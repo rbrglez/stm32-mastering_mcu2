@@ -33,6 +33,7 @@ uint32_t freq_tim2_Hz = 0;
 uint32_t period_tim2_ns = 0;
 
 uint8_t IC_capture_Callback_Done = 0;
+uint8_t send_msg = 0;
 
 char usr_msg[100];
 
@@ -52,6 +53,7 @@ void LSE_Configuration(void);
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim);
 void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim);
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart);
 
 /*
  ************************************************************************************************
@@ -89,9 +91,12 @@ int main(void) {
 			freq_meas_Hz = (uint32_t)1e9 / period_meas_ns;
 
 			IC_capture_Callback_Done = 0;
+		}
 
+		if(send_msg == 1){
+			send_msg = 0;
 			sprintf(usr_msg, "Measured Frequency: %luHz\n\r", freq_meas_Hz);
-			HAL_UART_Transmit(&huart1, (uint8_t*)usr_msg, strlen(usr_msg), HAL_MAX_DELAY);
+			HAL_UART_Transmit_IT(&huart1, (uint8_t*)usr_msg, strlen(usr_msg));
 		}
 	}
 
@@ -103,8 +108,14 @@ int main(void) {
  ** Function Declaration
  ************************************************************************************************
  */
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart){
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_0);
+}
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_5);
+	send_msg = 1;
 }
 
 void TIM17_Init(void){
@@ -161,14 +172,14 @@ void GPIO_Init(void){
 
 	/*
 	 *****************************************
-	 ** Configure Blue LED
+	 ** Configure Blue, Green and Red LED
 	 *****************************************
 	 */
 	// GPIOB Clock enable
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 
 	// Init GPIO
-	gpio_init.Pin = GPIO_PIN_5;
+	gpio_init.Pin = GPIO_PIN_5 | GPIO_PIN_0 | GPIO_PIN_1;
 	gpio_init.Mode = GPIO_MODE_OUTPUT_PP;
 	gpio_init.Pull = GPIO_NOPULL;
 	gpio_init.Speed = GPIO_SPEED_FREQ_LOW;

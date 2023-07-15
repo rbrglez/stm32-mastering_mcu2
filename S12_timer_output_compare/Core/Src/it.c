@@ -8,6 +8,7 @@
 
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim17;
+extern UART_HandleTypeDef huart1;
 
 void SysTick_Handler(void){
 	HAL_IncTick();
@@ -20,4 +21,8 @@ void TIM2_IRQHandler(void){
 
 void TIM1_TRG_COM_TIM17_IRQHandler(void){
 	HAL_TIM_IRQHandler(&htim17);
+}
+
+void USART1_IRQHandler(void){
+	HAL_UART_IRQHandler(&huart1);
 }

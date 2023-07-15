@@ -18,6 +18,11 @@
  ** Variables
  ************************************************************************************************
  */
+#define OC_PULSE_4KHZ 125
+#define OC_PULSE_2KHZ 250
+#define OC_PULSE_1KHZ 500
+#define OC_PULSE_500HZ 1000
+
 RCC_OscInitTypeDef osc_init = {0};
 RCC_ClkInitTypeDef clk_init = {0};
 
@@ -26,14 +31,24 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim17;
 
-uint32_t diff_input_capture = 0;
-uint32_t period_meas_ns = 0;
-uint32_t freq_meas_Hz = 0;
+uint32_t ch1_diff = 0;
+uint32_t ch2_diff = 0;
+uint32_t ch3_diff = 0;
+uint32_t ch4_diff = 0;
+
+uint32_t period_meas_ch1_ns = 0;
+uint32_t period_meas_ch2_ns = 0;
+uint32_t period_meas_ch3_ns = 0;
+uint32_t period_meas_ch4_ns = 0;
+
+uint32_t freq_meas_ch1_Hz = 0;
+uint32_t freq_meas_ch2_Hz = 0;
+uint32_t freq_meas_ch3_Hz = 0;
+uint32_t freq_meas_ch4_Hz = 0;
 
 uint32_t freq_tim2_Hz = 0;
 uint32_t period_tim2_ns = 0;
 
-uint8_t IC_capture_Callback_Done = 0;
 uint8_t send_msg = 0;
 
 char usr_msg[100];
@@ -77,6 +92,20 @@ int main(void) {
 		Error_handler();
 	}
 
+	// Start timer 2 in Input Capture mode
+	if(HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_2) != HAL_OK){
+		Error_handler();
+	}
+
+	// Start timer 2 in Input Capture mode
+	if(HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_3) != HAL_OK){
+		Error_handler();
+	}
+
+	// Start timer 2 in Input Capture mode
+	if(HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_4) != HAL_OK){
+		Error_handler();
+	}
 	// Start timer17 in base mode
 	if(HAL_TIM_Base_Start_IT(&htim17) != HAL_OK){
 		Error_handler();
@@ -87,23 +116,64 @@ int main(void) {
 		Error_handler();
 	}
 
+	// Start timer1 in Output Compare mode
+	if(HAL_TIM_OC_Start_IT(&htim1, TIM_CHANNEL_2) != HAL_OK){
+		Error_handler();
+	}
+
+	// Start timer1 in Output Compare mode
+	if(HAL_TIM_OC_Start_IT(&htim1, TIM_CHANNEL_3) != HAL_OK){
+		Error_handler();
+	}
+
 	while (1) {
-		// when input_capture_callback is done,
-		// calculate frequency and period of timer signal and
-		// calculate frequency and period of measured signal
-		if (IC_capture_Callback_Done == 1){
-			freq_tim2_Hz = 25000000;
-			period_tim2_ns = (uint32_t)1e9 / freq_tim2_Hz;
-
-			period_meas_ns = diff_input_capture * period_tim2_ns;
-			freq_meas_Hz = (uint32_t)1e9 / period_meas_ns;
-
-			IC_capture_Callback_Done = 0;
-		}
-
 		if(send_msg == 1){
 			send_msg = 0;
-			sprintf(usr_msg, "Measured Frequency: %luHz\n\r", freq_meas_Hz);
+
+			freq_tim2_Hz = (uint32_t)25e6;
+			period_tim2_ns = (uint32_t)1e9 / freq_tim2_Hz;
+
+			// CH1
+			if(ch1_diff > 0){
+				period_meas_ch1_ns = ch1_diff * period_tim2_ns;
+				freq_meas_ch1_Hz = (uint32_t)1e9 / period_meas_ch1_ns;
+			}
+			else{
+				period_meas_ch1_ns = 0;
+				freq_meas_ch1_Hz = 0;
+			}
+
+			// CH2
+			if(ch2_diff > 0){
+				period_meas_ch2_ns = ch2_diff * period_tim2_ns;
+				freq_meas_ch2_Hz = (uint32_t)1e9 / period_meas_ch2_ns;
+			}
+			else{
+				period_meas_ch2_ns = 0;
+				freq_meas_ch2_Hz = 0;
+			}
+
+			// CH3
+			if(ch3_diff > 0){
+				period_meas_ch3_ns = ch3_diff * period_tim2_ns;
+				freq_meas_ch3_Hz = (uint32_t)1e9 / period_meas_ch3_ns;
+			}
+			else{
+				period_meas_ch3_ns = 0;
+				freq_meas_ch3_Hz = 0;
+			}
+
+			// CH4
+			if(ch4_diff > 0){
+				period_meas_ch4_ns = ch4_diff * period_tim2_ns;
+				freq_meas_ch4_Hz = (uint32_t)1e9 / period_meas_ch4_ns;
+			}
+			else{
+				period_meas_ch4_ns = 0;
+				freq_meas_ch4_Hz = 0;
+			}
+
+			sprintf(usr_msg, "F_ch1: %luHz\tF_ch2: %luHz\tF_ch3: %luHz\tF_ch4: %luHz\n\r", freq_meas_ch1_Hz, freq_meas_ch2_Hz, freq_meas_ch3_Hz, freq_meas_ch4_Hz);
 			HAL_UART_Transmit_IT(&huart1, (uint8_t*)usr_msg, strlen(usr_msg));
 		}
 	}
@@ -127,24 +197,58 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 }
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim){
-	static uint32_t prev_input_capture;
-	static uint32_t curr_input_capture;
+	static uint32_t ch1[2] = {0};
+	static uint32_t ch2[2] = {0};
+	static uint32_t ch3[2] = {0};
+	static uint32_t ch4[2] = {0};
 
-	prev_input_capture = curr_input_capture;
-	curr_input_capture = __HAL_TIM_GET_COMPARE(htim, TIM_CHANNEL_1);
-	diff_input_capture = curr_input_capture - prev_input_capture;
+	if(htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1){
+		ch1[0] = ch1[1];
+		ch1[1] = __HAL_TIM_GET_COMPARE(htim, TIM_CHANNEL_1);
+		ch1_diff = ch1[1] - ch1[0];
+	}
 
-	IC_capture_Callback_Done = 1;
+	if(htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2){
+		ch2[0] = ch2[1];
+		ch2[1] = __HAL_TIM_GET_COMPARE(htim, TIM_CHANNEL_2);
+		ch2_diff = ch2[1] - ch2[0];
+	}
+
+	if(htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3){
+		ch3[0] = ch3[1];
+		ch3[1] = __HAL_TIM_GET_COMPARE(htim, TIM_CHANNEL_3);
+		ch3_diff = ch3[1] - ch3[0];
+	}
+
+	if(htim->Channel == HAL_TIM_ACTIVE_CHANNEL_4){
+		ch4[0] = ch4[1];
+		ch4[1] = __HAL_TIM_GET_COMPARE(htim, TIM_CHANNEL_4);
+		ch4_diff = ch4[1] - ch4[0];
+	}
 }
 
 void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim){
-//	tim2_ch1_init.Pulse = tim2_ch1_init.Pulse + (uint16_t)(25e3); // generate 500Hz signals
-//
-//	if(HAL_TIM_OC_ConfigChannel(&htim2, &tim2_ch1_init, TIM_CHANNEL_1) != HAL_OK){
-//		Error_handler();
-//	}
+	static uint32_t ccr_content;
 
-	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_1);
+	if(htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1){
+		ccr_content = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
+		__HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, ccr_content + OC_PULSE_4KHZ);
+	}
+
+	if(htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2){
+		ccr_content = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_2);
+		__HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_2, ccr_content + OC_PULSE_2KHZ);
+	}
+
+	if(htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3){
+		ccr_content = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_3);
+		__HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_3, ccr_content + OC_PULSE_1KHZ);
+	}
+
+	if(htim->Channel == HAL_TIM_ACTIVE_CHANNEL_4){
+		ccr_content = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_4);
+		__HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_4, ccr_content + OC_PULSE_500HZ);
+	}
 }
 
 void TIM1_Init(void){
@@ -153,21 +257,32 @@ void TIM1_Init(void){
 
 	htim1.Init.Prescaler = 50 - 1;
 	htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-	htim1.Init.Period = 125 - 1;
+	htim1.Init.Period =  0xFFFF;
 
 	if(HAL_TIM_OC_Init(&htim1) != HAL_OK){
 		Error_handler();
 	}
 
-	TIM_OC_InitTypeDef oc_ch1_init = {0};
+	TIM_OC_InitTypeDef oc_ch_init = {0};
 
-	oc_ch1_init.OCMode = TIM_OCMODE_TOGGLE;
-	oc_ch1_init.Pulse = (htim1.Init.Period + 1) / 2;
-	oc_ch1_init.OCPolarity = TIM_OCPOLARITY_HIGH;
+	oc_ch_init.OCMode = TIM_OCMODE_TOGGLE;
+	oc_ch_init.OCPolarity = TIM_OCPOLARITY_HIGH;
 
-	if(HAL_TIM_OC_ConfigChannel(&htim1, &oc_ch1_init, TIM_CHANNEL_1) != HAL_OK){
+	oc_ch_init.Pulse = OC_PULSE_4KHZ;
+	if(HAL_TIM_OC_ConfigChannel(&htim1, &oc_ch_init, TIM_CHANNEL_1) != HAL_OK){
 		Error_handler();
 	}
+
+	oc_ch_init.Pulse = OC_PULSE_2KHZ;
+	if(HAL_TIM_OC_ConfigChannel(&htim1, &oc_ch_init, TIM_CHANNEL_2) != HAL_OK){
+		Error_handler();
+	}
+
+	oc_ch_init.Pulse = OC_PULSE_1KHZ;
+	if(HAL_TIM_OC_ConfigChannel(&htim1, &oc_ch_init, TIM_CHANNEL_3) != HAL_OK){
+		Error_handler();
+	}
+
 }
 
 void TIM2_Init(void){
@@ -183,14 +298,26 @@ void TIM2_Init(void){
 		Error_handler();
 	}
 
-	TIM_IC_InitTypeDef ic_ch1_init = {0};
+	TIM_IC_InitTypeDef ch_init = {0};
 
-	ic_ch1_init.ICPolarity = TIM_ICPOLARITY_RISING;
-	ic_ch1_init.ICSelection = TIM_ICSELECTION_DIRECTTI;
-	ic_ch1_init.ICPrescaler = TIM_ICPSC_DIV1;
-	ic_ch1_init.ICFilter = 0;
+	ch_init.ICPolarity = TIM_ICPOLARITY_RISING;
+	ch_init.ICSelection = TIM_ICSELECTION_DIRECTTI;
+	ch_init.ICPrescaler = TIM_ICPSC_DIV1;
+	ch_init.ICFilter = 0;
 
-	if(HAL_TIM_IC_ConfigChannel(&htim2, &ic_ch1_init, TIM_CHANNEL_1) != HAL_OK){
+	if(HAL_TIM_IC_ConfigChannel(&htim2, &ch_init, TIM_CHANNEL_1) != HAL_OK){
+		Error_handler();
+	}
+
+	if(HAL_TIM_IC_ConfigChannel(&htim2, &ch_init, TIM_CHANNEL_2) != HAL_OK){
+		Error_handler();
+	}
+
+	if(HAL_TIM_IC_ConfigChannel(&htim2, &ch_init, TIM_CHANNEL_3) != HAL_OK){
+		Error_handler();
+	}
+
+	if(HAL_TIM_IC_ConfigChannel(&htim2, &ch_init, TIM_CHANNEL_4) != HAL_OK){
 		Error_handler();
 	}
 }

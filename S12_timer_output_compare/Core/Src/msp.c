@@ -66,8 +66,8 @@ void HAL_TIM_IC_MspInit(TIM_HandleTypeDef *htim){
 		__HAL_RCC_TIM2_CLK_ENABLE(); // Clock for TIM2
 		__HAL_RCC_GPIOA_CLK_ENABLE(); // Clock for TIM2 CH1
 
-		// 2.) Configure a GPIO to behave as timer 2 channel 1
-		gpio_init.Pin = GPIO_PIN_0;
+		// 2.) Configure CH1,CH2, CH3 and CH4 GPIO
+		gpio_init.Pin = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3;
 		gpio_init.Mode = GPIO_MODE_AF_PP;
 		gpio_init.Alternate = GPIO_AF1_TIM2;
 
@@ -103,7 +103,7 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim){
 }
 
 void HAL_TIM_OC_MspInit(TIM_HandleTypeDef *htim){
-	GPIO_InitTypeDef ch1_init;
+	GPIO_InitTypeDef gpio_ch_init;
 
 	if(htim->Instance == TIM1){
 		// 1.) Enable peripheral clocks
@@ -111,11 +111,14 @@ void HAL_TIM_OC_MspInit(TIM_HandleTypeDef *htim){
 		__HAL_RCC_GPIOA_CLK_ENABLE(); // Clock for TIM1 CH1
 
 		// 2.) Configure a GPIO to behave as timer 1 channel 1
-		ch1_init.Pin = GPIO_PIN_8;
-		ch1_init.Mode = GPIO_MODE_AF_PP;
-		ch1_init.Alternate = GPIO_AF1_TIM1;
+		//PA_8 -> CH1
+		//PA_9 -> CH2
+		//PA_10 -> CH3
+		gpio_ch_init.Pin = GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10;
+		gpio_ch_init.Mode = GPIO_MODE_AF_PP;
+		gpio_ch_init.Alternate = GPIO_AF1_TIM1;
 
-		HAL_GPIO_Init(GPIOA, &ch1_init);
+		HAL_GPIO_Init(GPIOA, &gpio_ch_init);
 
 		// 3.) Enable IRQ of TIM1
 		HAL_NVIC_EnableIRQ(TIM1_CC_IRQn);

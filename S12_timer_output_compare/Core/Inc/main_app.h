@@ -15,7 +15,8 @@
 #define  BUS_FLT_PRIORITY	0U /*!< bus fault interrupt preempt-priority */
 #define  USG_FLT_PRIORITY	0U /*!< usage fault interrupt preempt-priority */
 #define  UART1_PRIORITY		1U /*!< Uart1 interrupt preempt-priority */
-#define  TIM2_PRIORITY		14U /*!< Timer2 interrupt preempt-priority */
+#define  TIM2_PRIORITY		13U /*!< Timer2 interrupt preempt-priority */
+#define  TIM1_PRIORITY		14U /*!< Timer1 interrupt preempt-priority */
 #define  TIM17_PRIORITY		15U /*!< Timer17 interrupt preempt-priority */
 
 // Redundant because NVIC_PRIORITYGROUP_4 is used, which has only one sub-priority!

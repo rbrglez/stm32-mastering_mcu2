@@ -50,18 +50,77 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart){
 
 void GPIO_Init(void){
 
-	GPIO_InitTypeDef gpio_init = {0};
+	GPIO_InitTypeDef led_init = {0};
+	GPIO_InitTypeDef btn_init = {0};
+
+	/* Initialize LEDs */
 
 	// GPIOB Clock enable
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 
-	// Init GPIO
-	gpio_init.Pin = GPIO_PIN_5 | GPIO_PIN_0 | GPIO_PIN_1; // blue, green, red
-	gpio_init.Mode = GPIO_MODE_OUTPUT_PP;
-	gpio_init.Pull = GPIO_NOPULL;
-	gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+	/** LEDs GPIO Configuration
+    PB5 ------> Blue LED
+    PB0 ------> Green LED
+    PB1 ------> Red LED
+    */
+	led_init.Pin = GPIO_PIN_5 | GPIO_PIN_0 | GPIO_PIN_1;
+	led_init.Mode = GPIO_MODE_OUTPUT_PP;
+	led_init.Pull = GPIO_NOPULL;
+	led_init.Speed = GPIO_SPEED_FREQ_LOW;
 
-	HAL_GPIO_Init(GPIOB, &gpio_init);
+	HAL_GPIO_Init(GPIOB, &led_init);
+
+	/* Initialize Buttons */
+
+	__HAL_RCC_GPIOC_CLK_ENABLE();
+	__HAL_RCC_GPIOD_CLK_ENABLE();
+
+	/** Buttons GPIO Configuration
+    PC4 ------> SW1
+    PD0 ------> SW2
+    PD1 ------> SW3
+    */
+	btn_init.Pin = GPIO_PIN_4;
+	btn_init.Mode = GPIO_MODE_IT_FALLING;
+	btn_init.Pull = GPIO_PULLUP;
+	btn_init.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(GPIOC, &btn_init);
+
+	btn_init.Pin = GPIO_PIN_0 | GPIO_PIN_1;
+	HAL_GPIO_Init(GPIOD, &btn_init);
+
+	// Enable the IRQ and set up the priority (NVIC settings)
+	HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+	HAL_NVIC_SetPriority(EXTI4_IRQn, BTN_PRIORITY, DEFAULT_SUB_PRIORITY);
+
+	HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+	HAL_NVIC_SetPriority(EXTI0_IRQn, BTN_PRIORITY, DEFAULT_SUB_PRIORITY);
+
+	HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+	HAL_NVIC_SetPriority(EXTI1_IRQn, BTN_PRIORITY, DEFAULT_SUB_PRIORITY);
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	switch (GPIO_Pin){
+		case GPIO_PIN_4:
+			//
+			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_0); // toggle green LED
+			break;
+
+		case GPIO_PIN_0:
+			//
+			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_1); // toggle red LED
+			break;
+
+		case GPIO_PIN_1:
+			//
+			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_5); // toggle blue LED
+			break;
+
+		default:
+			Error_handler();
+			break;
+	}
 }
 
 void TIM1_Init(void){

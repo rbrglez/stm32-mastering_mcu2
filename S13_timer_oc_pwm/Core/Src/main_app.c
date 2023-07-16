@@ -10,16 +10,16 @@
 #include "string.h"
 
 UART_HandleTypeDef huart1;
-TIM_HandleTypeDef htim1;
+TIM_HandleTypeDef htim2;
 
 void SystemClockConfig(uint8_t clk_freq);
 void UART1_Init(void);
-void TIM1_Init(void);
+void TIM2_Init(void);
 void GPIO_Init(void);
-void Error_handler(void);
 
 // Callbacks
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart);
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim);
 
 char usr_msg[100];
 
@@ -27,8 +27,24 @@ int main(void) {
 	HAL_Init();
 	SystemClockConfig(SYS_CLOCK_FREQ_50_MHZ);
 	UART1_Init();
-	TIM1_Init();
+	TIM2_Init();
 	GPIO_Init();
+
+	if(HAL_TIM_OC_Start_IT(&htim2, TIM_CHANNEL_1) != HAL_OK){
+		Error_handler();
+	}
+
+	if(HAL_TIM_OC_Start_IT(&htim2, TIM_CHANNEL_2) != HAL_OK){
+		Error_handler();
+	}
+
+	if(HAL_TIM_OC_Start_IT(&htim2, TIM_CHANNEL_3) != HAL_OK){
+		Error_handler();
+	}
+
+	if(HAL_TIM_OC_Start_IT(&htim2, TIM_CHANNEL_4) != HAL_OK){
+		Error_handler();
+	}
 
 	sprintf(usr_msg, "The Application has started!\r\n");
 	if(HAL_UART_Transmit(&huart1, (uint8_t*)usr_msg, strlen(usr_msg), HAL_MAX_DELAY) != HAL_OK){
@@ -42,6 +58,10 @@ int main(void) {
 	}
 
 	return 0;
+}
+
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim){
+
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart){
@@ -123,14 +143,40 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	}
 }
 
-void TIM1_Init(void){
-	htim1.Instance = TIM1;
+void TIM2_Init(void){
+	htim2.Instance = TIM2;
 
-	htim1.Init.Prescaler = 1000 - 1; // Timer clock is 50 kHz
-	htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-	htim1.Init.Period = (uint32_t)(5e3) - 1; // 100ms * 50kHz = 5e3
+	htim2.Init.Prescaler = 50e3 - 1; // Timer clock is 1 kHz
+	htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim2.Init.Period = 1000 - 1;
 
-	if(HAL_TIM_Base_Init(&htim1) != HAL_OK){
+	if(HAL_TIM_OC_Init(&htim2) != HAL_OK){
+		Error_handler();
+	}
+
+	TIM_OC_InitTypeDef oc_ch_config = {0};
+
+	oc_ch_config.OCMode = TIM_OCMODE_PWM1;
+	oc_ch_config.OCPolarity = TIM_OCPOLARITY_HIGH;
+	oc_ch_config.OCFastMode = TIM_OCFAST_ENABLE;
+
+	oc_ch_config.Pulse = 250;
+	if(HAL_TIM_OC_ConfigChannel(&htim2, &oc_ch_config, TIM_CHANNEL_1) != HAL_OK){
+		Error_handler();
+	}
+
+	oc_ch_config.Pulse = 450;
+	if(HAL_TIM_OC_ConfigChannel(&htim2, &oc_ch_config, TIM_CHANNEL_2) != HAL_OK){
+		Error_handler();
+	}
+
+	oc_ch_config.Pulse = 750;
+	if(HAL_TIM_OC_ConfigChannel(&htim2, &oc_ch_config, TIM_CHANNEL_3) != HAL_OK){
+		Error_handler();
+	}
+
+	oc_ch_config.Pulse = 900;
+	if(HAL_TIM_OC_ConfigChannel(&htim2, &oc_ch_config, TIM_CHANNEL_4) != HAL_OK){
 		Error_handler();
 	}
 

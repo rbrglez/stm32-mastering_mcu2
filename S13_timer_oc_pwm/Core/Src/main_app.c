@@ -6,6 +6,8 @@
  */
 
 #include "main_app.h"
+#include "stdio.h"
+#include "string.h"
 
 UART_HandleTypeDef huart1;
 TIM_HandleTypeDef htim1;
@@ -16,6 +18,11 @@ void TIM1_Init(void);
 void GPIO_Init(void);
 void Error_handler(void);
 
+// Callbacks
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart);
+
+char usr_msg[100];
+
 int main(void) {
 	HAL_Init();
 	SystemClockConfig(SYS_CLOCK_FREQ_50_MHZ);
@@ -23,12 +30,22 @@ int main(void) {
 	TIM1_Init();
 	GPIO_Init();
 
+	sprintf(usr_msg, "The Application has started!\r\n");
+	if(HAL_UART_Transmit(&huart1, (uint8_t*)usr_msg, strlen(usr_msg), HAL_MAX_DELAY) != HAL_OK){
+		Error_handler();
+	}
+
 	// Add Your code here
 	while (1) {
-
+		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_5);
+		HAL_Delay(1000);
 	}
 
 	return 0;
+}
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart){
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_0);
 }
 
 void GPIO_Init(void){
@@ -39,7 +56,7 @@ void GPIO_Init(void){
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 
 	// Init GPIO
-	gpio_init.Pin = GPIO_PIN_5;
+	gpio_init.Pin = GPIO_PIN_5 | GPIO_PIN_0 | GPIO_PIN_1; // blue, green, red
 	gpio_init.Mode = GPIO_MODE_OUTPUT_PP;
 	gpio_init.Pull = GPIO_NOPULL;
 	gpio_init.Speed = GPIO_SPEED_FREQ_LOW;

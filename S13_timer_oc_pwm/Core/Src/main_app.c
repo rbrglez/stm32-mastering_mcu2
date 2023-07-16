@@ -17,11 +17,28 @@ void UART1_Init(void);
 void TIM2_Init(void);
 void GPIO_Init(void);
 
+// Application
+void APP_UART_TxCurrentConfig(void);
+void APP_ModifyConfigMsg(char *msg[]);
+
 // Callbacks
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart);
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim);
 
 char usr_msg[100];
+
+char* config_msg[] = {
+		"***********************\r\n",
+		"LED_0 (A3)\r\n",
+		"LED_1 (A2)\r\n",
+		"LED_2 (D1)\r\n",
+		"LED_3 (D0)\r\n"
+};
+
+uint8_t send_config = 0;
+
+uint8_t selected_PWM_Ch = 2;
+uint16_t pwm_ch_setting[4] = {75, 50, 25, 10};
 
 int main(void) {
 	HAL_Init();
@@ -47,7 +64,7 @@ int main(void) {
 	}
 
 	sprintf(usr_msg, "The Application has started!\r\n");
-	if(HAL_UART_Transmit(&huart1, (uint8_t*)usr_msg, strlen(usr_msg), HAL_MAX_DELAY) != HAL_OK){
+	if(HAL_UART_Transmit_IT(&huart1, (uint8_t*)usr_msg, strlen(usr_msg)) != HAL_OK){
 		Error_handler();
 	}
 
@@ -60,12 +77,46 @@ int main(void) {
 	return 0;
 }
 
+void APP_ModifyConfigMsg(char *msg[]){
+	char insert_msg[] = "> ";
+
+	uint8_t modified_line_length = strlen(msg[1]) + strlen(insert_msg) + 1;
+	char modified_line[modified_line_length];
+
+    // Construct the modified second line with ">"
+    snprintf(modified_line, modified_line_length, "> %s", msg[1]);
+
+    msg[1] = modified_line;
+
+
+//	sprintf(usr_msg, "lineLength = %d\r\n", lineLength);
+//	HAL_UART_Transmit_IT(&huart1, (uint8_t*)modified_line, modified_line_length);
+	APP_UART_TxCurrentConfig();
+}
+void APP_UART_TxCurrentConfig(void){
+	static uint8_t curr_line = 0;
+	char* line = config_msg[curr_line];
+
+	curr_line++;
+
+	if(curr_line >= sizeof(config_msg)/sizeof(config_msg[0])){
+		curr_line = 0;
+		send_config = 0;
+	}
+
+	if(HAL_UART_Transmit_IT(&huart1, (uint8_t*)line, strlen(line)) != HAL_OK){
+		Error_handler();
+	}
+}
+
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim){
 
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart){
-	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_0);
+	if(send_config == 1){
+		APP_UART_TxCurrentConfig();
+	}
 }
 
 void GPIO_Init(void){
@@ -123,17 +174,25 @@ void GPIO_Init(void){
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	switch (GPIO_Pin){
 		case GPIO_PIN_4:
-			//
+			// SW1
+			// TODO: Send Current configuration via UART
+
+			send_config = 1; // Enable sending of Configurations
+			APP_UART_TxCurrentConfig();
+
 			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_0); // toggle green LED
 			break;
 
 		case GPIO_PIN_0:
-			//
+			// SW2
+
+			APP_ModifyConfigMsg(config_msg);
+
 			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_1); // toggle red LED
 			break;
 
 		case GPIO_PIN_1:
-			//
+			// SW3
 			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_5); // toggle blue LED
 			break;
 
@@ -146,7 +205,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 void TIM2_Init(void){
 	htim2.Instance = TIM2;
 
-	htim2.Init.Prescaler = 50e3 - 1; // Timer clock is 1 kHz
+	htim2.Init.Prescaler = 50 - 1; // Timer clock is 1 MHz
 	htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
 	htim2.Init.Period = 1000 - 1;
 
